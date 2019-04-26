@@ -5,10 +5,9 @@ const secrets = require('./secrets.json');
 const client = new Discord.Client();
 
 let serverIP = secrets.serverIP;
-let checkServerTimerMinutes = 5; // enter in minutes
-let checkServerStatusTimer = 5*60*1000; // convert to milliseconds
+let checkServerStatusTimer = 60000; // convert to milliseconds
 
-console.log('Checking server status every ' + checkServerTimerMinutes + ' minutes');
+console.log('Checking server status every ' + (checkServerStatusTimer/1000/60) + ' minutes');
 
 client.on('ready', () => {
     console.log('Logged in as ' + client.user.tag);
@@ -32,7 +31,8 @@ function setActivity(activity) { // function to set activity of bot
 }
 
 function getServerStatus() {
-    console.log('Checking status');
+    let date = new Date();
+    console.log(date.getHours() + ":" + date.getMinutes() + ' > Checking status');
     request({
         url: 'http://mcapi.us/server/status?ip=' + serverIP
     }, function (err, res, body) {
