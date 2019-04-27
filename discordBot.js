@@ -32,7 +32,7 @@ function setActivity(activity) { // function to set activity of bot
 
 function getServerStatus() {
     let date = new Date();
-    console.log(date.getHours() + ":" + date.getMinutes() + ' > Checking status');
+    console.log(date.getHours() + ":" + date.getMinutes() + ' > Checking status'); // print out current time
     request({
         url: 'http://mcapi.us/server/status?ip=' + serverIP
     }, function (err, res, body) {
