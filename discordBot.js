@@ -8,6 +8,9 @@ let serverIP = secrets.serverIP;
 let checkServerStatusTimer = 60000; // convert to milliseconds
 let botStatus = 'dnd';
 
+// timers
+let playerListTimer = 0;
+
 // <editor-fold description="Script">
 console.log('Checking server status every ' + (checkServerStatusTimer/1000/60) + ' minutes');
 
@@ -60,7 +63,7 @@ function getServerStatus() {
         let status = JSON.parse(body);
         // console.log(status);
 
-        if (status.players.max === 0) {
+        if (!status.players) {
             botStatus = 'dnd';
             setActivity('Server offline!');
         } else {
@@ -68,30 +71,37 @@ function getServerStatus() {
             setActivity(status.players.online + " players on kfpmc.org");
         }
     });
+
+    if (playerListTimer > 0) {
+        playerListTimer--;
+    }
 }
 
 function getPlayerList(callback) {
-    if (botStatus === 'online') {
-        request({
-            // url: 'http://mcapi.us/server/status?ip=' + serverIP
-            url: 'https://api.mcsrvstat.us/2/' + serverIP
-        }, function (err, res, body) {
-            if (err) {
-                console.log(err);
-                return;
-            }
+    if (playerListTimer === 0) {
+        if (botStatus === 'online') {
+            request({
+                // url: 'http://mcapi.us/server/status?ip=' + serverIP
+                url: 'https://api.mcsrvstat.us/2/' + serverIP
+            }, function (err, res, body) {
+                if (err) {
+                    console.log(err);
+                    return;
+                }
 
-            let status = JSON.parse(body);
-            // console.log(status);
+                let status = JSON.parse(body);
+                // console.log(status);
 
-            if (status.players.max === 0) {
-                callback(false);
-            } else {
-                callback(status.players.list);
-            }
-        });
-    } else {
-        callback(false);
+                if (status.players.max === 0) {
+                    callback(false);
+                } else {
+                    callback(status.players.list);
+                }
+            });
+        } else {
+            callback(false);
+        }
+        playerListTimer = 1;
     }
 }
 // </editor-fold description="Functions">
