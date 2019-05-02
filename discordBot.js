@@ -7,6 +7,7 @@ const client = new Discord.Client();
 let serverIP = secrets.serverIP;
 let checkServerStatusTimer = 60000; // convert to milliseconds
 let botStatus = 'dnd';
+let errorReported = false;
 
 // timers
 let playerListTimer = 0;
@@ -40,6 +41,11 @@ client.on('message', message => {
             _message.channel.send(message);
         })
     }
+
+    else if (message.author.id === secrets.adminID && message.content === "!k" && errorReported) {
+        errorReported = false;
+        console.log("Error Reporting reset!");
+    }
 });
 
 client.login(secrets.token); // set token and login
@@ -52,56 +58,76 @@ function setActivity(activity) { // function to set activity of bot
 }
 
 function getServerStatus() {
-    let date = new Date();
-    console.log(date.getHours() + ":" + date.getMinutes() + ' > Checking status'); // print out current time
-    request({
-        // url: 'http://mcapi.us/server/status?ip=' + serverIP
-        url: 'https://api.mcsrvstat.us/2/' + serverIP
-    }, function (err, res, body) {
-        if (err) {console.log(err); return;}
+    try {
+        let date = new Date();
+        console.log(date.getHours() + ":" + date.getMinutes() + ' > Checking status'); // print out current time
+        request({
+            url: 'https://api.mcsrvstat.us/2/' + serverIP
+        }, function (err, res, body) {
+            if (err) {
+                console.log(err);
+                return;
+            }
 
-        let status = JSON.parse(body);
-        // console.log(status);
+            let status = JSON.parse(body);
+            // console.log(status);
 
-        if (!status.players) {
-            botStatus = 'dnd';
-            setActivity('Server offline!');
-        } else {
-            botStatus = 'online';
-            setActivity(status.players.online + " players on kfpmc.org");
+            if (!status.players) {
+                botStatus = 'dnd';
+                setActivity('Server offline!');
+            } else {
+                botStatus = 'online';
+                setActivity(status.players.online + " players on kfpmc.org");
+            }
+        });
+
+        if (playerListTimer > 0) {
+            playerListTimer--;
         }
-    });
-
-    if (playerListTimer > 0) {
-        playerListTimer--;
+    } catch (err) {
+        reportError(err, "getServerStatus()");
     }
 }
 
 function getPlayerList(callback) {
-    if (playerListTimer === 0) {
-        if (botStatus === 'online') {
-            request({
-                // url: 'http://mcapi.us/server/status?ip=' + serverIP
-                url: 'https://api.mcsrvstat.us/2/' + serverIP
-            }, function (err, res, body) {
-                if (err) {
-                    console.log(err);
-                    return;
-                }
+    try {
+        if (playerListTimer === 0) {
+            if (botStatus === 'online') {
+                request({
+                    url: 'https://api.mcsrvstat.us/2/' + serverIP
+                }, function (err, res, body) {
+                    if (err) {
+                        console.log(err);
+                        return;
+                    }
 
-                let status = JSON.parse(body);
-                // console.log(status);
+                    let status = JSON.parse(body);
+                    // console.log(status);
 
-                if (status.players.max === 0) {
-                    callback(false);
-                } else {
-                    callback(status.players.list);
-                }
-            });
-        } else {
-            callback(false);
+                    if (status.players.max === 0) {
+                        callback(false);
+                    } else {
+                        callback(status.players.list);
+                    }
+                });
+            } else {
+                callback(false);
+            }
+            playerListTimer = 1;
         }
-        playerListTimer = 1;
+    } catch (err) {
+        reportError(err, "getPlayerList()");
+    }
+}
+
+function reportError(err, functionName) {
+    console.log("Problem in " + functionName + ", see below.");
+    console.error(err);
+
+    if (!errorReported) {
+        client.users.get(secrets.adminID).send('Problem in ' + functionName +
+        "\nReply with !k to receive new error reports.");
+        errorReported = true;
     }
 }
 // </editor-fold description="Functions">
