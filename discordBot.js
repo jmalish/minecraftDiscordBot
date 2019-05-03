@@ -2,6 +2,8 @@ const Discord = require('discord.js');
 const request = require('request');
 
 const secrets = require('./secrets.json');
+// const servers = require('./servers.json');
+
 const client = new Discord.Client();
 
 let serverIP = secrets.serverIP;
@@ -9,8 +11,10 @@ let checkServerStatusTimer = 60000; // convert to milliseconds
 let botStatus = 'dnd';
 let errorReported = false;
 
+let lastList = null; // used for deletion of old player lists so as not to spam channel
+
 // timers
-let playerListTimer = 0;
+// let playerListTimer = 0;
 
 // <editor-fold description="Script">
 console.log('Checking server status every ' + (checkServerStatusTimer/1000/60) + ' minutes');
@@ -31,14 +35,22 @@ client.on('message', message => {
         getPlayerList(playerList => {
             if (!playerList) {
                 _message.channel.send("Either the server is offline or something else went wrong...")
-            }
-            let message = 'Users online:\n```\n';
-            playerList.forEach(player => {
-                message = message.concat(player, '\n');
-            });
-            message = message.concat('```');
+            } else {
+                let message = playerList.length + ' users online:\n```\n';
+                playerList.forEach(player => {
+                    message = message.concat(player, '\n');
+                });
+                message = message.concat('```');
 
-            _message.channel.send(message);
+                if (lastList) {
+                    lastList.delete();
+                }
+
+                _message.channel.send(message)
+                    .then(sentMessage => {
+                        lastList = sentMessage;
+                    });
+            }
         })
     }
 
@@ -46,6 +58,10 @@ client.on('message', message => {
         errorReported = false;
         console.log("Error Reporting reset!");
     }
+});
+
+client.on('error', err => {
+    reportError(err, 'Client Error');
 });
 
 client.login(secrets.token); // set token and login
@@ -57,7 +73,7 @@ function setActivity(activity) { // function to set activity of bot
     client.user.setStatus(botStatus);
 }
 
-function getServerStatus() {
+function getServerStatus(ip) { // TODO: change over to use given IP
     try {
         let date = new Date();
         console.log(date.getHours() + ":" + date.getMinutes() + ' > Checking status'); // print out current time
@@ -77,13 +93,13 @@ function getServerStatus() {
                 setActivity('Server offline!');
             } else {
                 botStatus = 'online';
-                setActivity(status.players.online + " players on kfpmc.org");
+                setActivity(status.players.online + " players online");
             }
         });
 
-        if (playerListTimer > 0) {
-            playerListTimer--;
-        }
+        // if (playerListTimer > 0) {
+        //     playerListTimer--;
+        // }
     } catch (err) {
         reportError(err, "getServerStatus()");
     }
@@ -91,7 +107,7 @@ function getServerStatus() {
 
 function getPlayerList(callback) {
     try {
-        if (playerListTimer === 0) {
+        // if (playerListTimer === 0) {
             if (botStatus === 'online') {
                 request({
                     url: 'https://api.mcsrvstat.us/2/' + serverIP
@@ -113,8 +129,8 @@ function getPlayerList(callback) {
             } else {
                 callback(false);
             }
-            playerListTimer = 1;
-        }
+            // playerListTimer = 1;
+        // }
     } catch (err) {
         reportError(err, "getPlayerList()");
     }
