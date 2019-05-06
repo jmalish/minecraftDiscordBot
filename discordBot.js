@@ -177,11 +177,11 @@ function getPlayerList(callback, requestedServer = null) {
 function reportError(err, functionName) {
     console.log("Problem in " + functionName + ", see below.");
     console.error(err);
-    //
-    // if (!errorReported) {
-    //     client.users.get(settings.adminID).send('Problem in ' + functionName +
-    //     "\nReply with !k to receive new error reports.");
-    //     errorReported = true;
-    // }
+
+    if (!errorReported) {
+        client.users.get(settings.adminID).send('Problem in ' + functionName +
+        "\nReply with !k to receive new error reports.");
+        errorReported = true;
+    }
 }
 // </editor-fold description="Functions">
