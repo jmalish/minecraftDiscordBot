@@ -1,22 +1,21 @@
 const Discord = require('discord.js');
 const request = require('request');
 
-const secrets = require('./secrets.json');
-// const servers = require('./servers.json');
+const settings = require('./settings.json');
+let Server = require('./Server');
 
 const client = new Discord.Client();
 
-let serverIP = secrets.serverIP;
-let checkServerStatusTimer = 60000; // convert to milliseconds
+let servers = [];
+let checkServerStatusTimer = 30000; // convert to milliseconds
 let botStatus = 'dnd';
 let errorReported = false;
+let lastServerChecked = -1;
 
 let lastList = null; // used for deletion of old player lists so as not to spam channel
 
-// timers
-// let playerListTimer = 0;
-
 // <editor-fold description="Script">
+getServers();
 console.log('Checking server status every ' + (checkServerStatusTimer/1000/60) + ' minutes');
 
 client.on('ready', () => {
@@ -31,16 +30,39 @@ client.on('message', message => {
     if (message.author.bot) return; // ignore other bots
     if (message.content.indexOf('!') !== 0) return; // make sure message starts with our command indicator
 
-    if (message.content === '!list') {
+    if (message.content.indexOf('!list') > -1) {
+        let requestedServer = servers[0].name;
+
+        if (message.content.split(' ')[1]) {
+            requestedServer = message.content.split(' ')[1].trim();
+        }
+
         getPlayerList(playerList => {
             if (!playerList) {
-                _message.channel.send("Either the server is offline or something else went wrong...")
+                _message.channel.send('Either the server is offline, or no one is online.')
+                    .then(sentMessage => {
+                        lastList = sentMessage; // store the last command so we can delete it later to avoid spamming the channel
+                    });
+
+                return;
+            }
+
+            let message = playerList.length + ' users online on ' + requestedServer + ':\n```\n';
+            if (!playerList) {
+                _message.channel.send("Either the server is offline or something else went wrong...");
             } else {
-                let message = playerList.length + ' users online:\n```\n';
                 playerList.forEach(player => {
                     message = message.concat(player, '\n');
                 });
                 message = message.concat('```');
+                if (servers.length > 1) {
+                    message = message.concat('\nTo see a list of players on another server, enter one of the following after !list: ');
+                    servers.forEach(server => {
+                        if (server !== servers[0]) {
+                            message = message.concat('`' + server.name + '` ');
+                        }
+                    });
+                }
 
                 if (lastList) {
                     lastList.delete();
@@ -48,89 +70,105 @@ client.on('message', message => {
 
                 _message.channel.send(message)
                     .then(sentMessage => {
-                        lastList = sentMessage;
+                        lastList = sentMessage; // store the last command so we can delete it later to avoid spamming the channel
                     });
             }
-        })
+        }, requestedServer)
     }
 
-    else if (message.author.id === secrets.adminID && message.content === "!k" && errorReported) {
+    else if (message.author.id === settings.adminID && message.content === "!k" && errorReported) {
         errorReported = false;
         console.log("Error Reporting reset!");
     }
 });
 
 client.on('error', err => {
-    reportError(err, 'Client Error');
+    // This is called whenever the client runs into an error, I assume this is discord related, but I can't find anything in discordjs documentation
+    // I don't think it's neccessary to report this to the admin, having this code keeps the bot from crashing, that's the important part
+    // reportError(err, 'Client Error');
 });
 
-client.login(secrets.token); // set token and login
+client.login(settings.token); // set token and login
 // </editor-fold description="Script">
 
 // <editor-fold description="Functions">
+function getServers() {
+    servers = [];
+
+    settings.servers.forEach(server => {
+        let _server = new Server(server.ip, server.name);
+
+        _server.status = 'offline';
+
+        servers.push(_server);
+    });
+}
+
 function setActivity(activity) { // function to set activity of bot
     client.user.setActivity(activity.toString(), {type: 'PLAYING'});
     client.user.setStatus(botStatus);
 }
 
-function getServerStatus(ip) { // TODO: change over to use given IP
+function getServerStatus() {
     try {
+        let checkingServer;
+
+        if (lastServerChecked === servers.length - 1) {
+            checkingServer = servers[0];
+            lastServerChecked = 0;
+        } else {
+            lastServerChecked++;
+            checkingServer = servers[lastServerChecked];
+        }
+
         let date = new Date();
-        console.log(date.getHours() + ":" + date.getMinutes() + ' > Checking status'); // print out current time
+        console.log(date.getHours() + ":" + date.getMinutes() + ' > Checking status of ' + checkingServer.name); // print out current time
         request({
-            url: 'https://api.mcsrvstat.us/2/' + serverIP
+            url: 'https://api.mcsrvstat.us/2/' + checkingServer.ip
         }, function (err, res, body) {
-            if (err) {
-                console.log(err);
-                return;
-            }
+            if (err) {console.log(err); return;}
 
             let status = JSON.parse(body);
-            // console.log(status);
 
             if (!status.players) {
                 botStatus = 'dnd';
-                setActivity('Server offline!');
+                setActivity(checkingServer.name + ' offline!');
             } else {
                 botStatus = 'online';
-                setActivity(status.players.online + " players online");
+                setActivity("with " + status.players.online + " others on " + checkingServer.name);
             }
         });
-
-        // if (playerListTimer > 0) {
-        //     playerListTimer--;
-        // }
     } catch (err) {
         reportError(err, "getServerStatus()");
     }
 }
 
-function getPlayerList(callback) {
+function getPlayerList(callback, requestedServer = null) {
     try {
-        // if (playerListTimer === 0) {
-            if (botStatus === 'online') {
-                request({
-                    url: 'https://api.mcsrvstat.us/2/' + serverIP
-                }, function (err, res, body) {
-                    if (err) {
-                        console.log(err);
-                        return;
-                    }
+        if (!requestedServer) {
+            requestedServer = servers[0].ip;
+        } else {
+            let findServer = servers.find(server => {
+                return server.name === requestedServer;
+            });
 
-                    let status = JSON.parse(body);
-                    // console.log(status);
+            requestedServer = findServer.ip;
+        }
 
-                    if (status.players.max === 0) {
-                        callback(false);
-                    } else {
-                        callback(status.players.list);
-                    }
-                });
-            } else {
+
+        request({
+            url: 'https://api.mcsrvstat.us/2/' + requestedServer
+        }, function (err, res, body) {
+            if (err) {console.log(err); return;}
+
+            let status = JSON.parse(body);
+
+            if (!status.players) {
                 callback(false);
+            } else {
+                callback(status.players.list);
             }
-            // playerListTimer = 1;
-        // }
+        });
     } catch (err) {
         reportError(err, "getPlayerList()");
     }
@@ -139,11 +177,11 @@ function getPlayerList(callback) {
 function reportError(err, functionName) {
     console.log("Problem in " + functionName + ", see below.");
     console.error(err);
-
-    if (!errorReported) {
-        client.users.get(secrets.adminID).send('Problem in ' + functionName +
-        "\nReply with !k to receive new error reports.");
-        errorReported = true;
-    }
+    //
+    // if (!errorReported) {
+    //     client.users.get(settings.adminID).send('Problem in ' + functionName +
+    //     "\nReply with !k to receive new error reports.");
+    //     errorReported = true;
+    // }
 }
 // </editor-fold description="Functions">

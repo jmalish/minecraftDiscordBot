@@ -1,4 +1,4 @@
 .idea
-secrets.json
+settings.json
 node_modules
 test.js
