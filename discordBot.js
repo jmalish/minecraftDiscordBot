@@ -12,8 +12,6 @@ let botStatus = 'dnd';
 let errorReported = false;
 let lastServerChecked = -1;
 
-let lastList = null; // used for deletion of old player lists so as not to spam channel
-
 // <editor-fold description="Script">
 getServers();
 console.log('Checking server status every ' + (checkServerStatusTimer/1000/60) + ' minutes');
@@ -39,38 +37,37 @@ client.on('message', message => {
 
         getPlayerList(playerList => {
             if (!playerList) {
-                _message.channel.send('Either the server is offline, or no one is online.')
+                _message.channel.send('Either the server is offline, or no one is online.\n' +
+                    'This message will self destruct in 30 seconds.')
                     .then(sentMessage => {
-                        lastList = sentMessage; // store the last command so we can delete it later to avoid spamming the channel
+                        sentMessage.delete(30000);
                     });
 
                 return;
             }
 
-            let message = playerList.length + ' users online on ' + requestedServer + ':\n```\n';
+            let messageToSend = playerList.length + ' users online on ' + requestedServer + ':\n```\n';
             if (!playerList) {
-                _message.channel.send("Either the server is offline or something else went wrong...");
+                _message.channel.send("No one's online!");
             } else {
                 playerList.forEach(player => {
-                    message = message.concat(player, '\n');
+                    messageToSend = messageToSend.concat(player, '\n');
                 });
-                message = message.concat('```');
+                messageToSend = messageToSend.concat('```');
                 if (servers.length > 1) {
-                    message = message.concat('\nTo see a list of players on another server, enter one of the following after !list: ');
+                    messageToSend = messageToSend.concat('\nTo see a list of players on another server, enter one of the following after !list: ');
                     servers.forEach(server => {
                         if (server !== servers[0]) {
-                            message = message.concat('`' + server.name + '` ');
+                            messageToSend = messageToSend.concat('`' + server.name + '` ');
                         }
                     });
                 }
 
-                if (lastList) {
-                    lastList.delete();
-                }
+                messageToSend = messageToSend + '\nThis message will self destruct in 30 seconds.';
 
-                _message.channel.send(message)
+                _message.channel.send(messageToSend)
                     .then(sentMessage => {
-                        lastList = sentMessage; // store the last command so we can delete it later to avoid spamming the channel
+                        sentMessage.delete(30000); // store the last command so we can delete it later to avoid spamming the channel
                     });
             }
         }, requestedServer)
