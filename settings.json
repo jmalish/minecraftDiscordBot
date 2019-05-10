@@ -1,0 +1,15 @@
+{
+  "token": "<discord bot token>",
+  "serverIP": "<minecraft server ip>",
+  "adminID": "<your discord user id>",
+  "servers": [
+    {
+      "ip": "<ip of server 1>",
+      "name": "<name of server 1>"
+    },
+    {
+      "ip": "<ip of server 2>",
+      "name": "<name of server 2>"
+    }
+  ]
+}
