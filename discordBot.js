@@ -30,23 +30,22 @@ client.on('message', message => {
 
     if (message.content.indexOf('!list') > -1) {
         let requestedServer = servers[0].name;
+        let playerCount = 0;
 
         if (message.content.split(' ')[1]) {
-            requestedServer = message.content.split(' ')[1].trim();
+            requestedServer = message.content.split(' ')[1].trim().toLowerCase();
         }
 
         getPlayerList(playerList => {
             if (!playerList) {
-                _message.channel.send('Either the server is offline, or no one is online.\n' +
-                    'This message will self destruct in 30 seconds.')
-                    .then(sentMessage => {
-                        sentMessage.delete(30000);
-                    });
+                _message.channel.send('Either the server is offline, or no one is online.');
 
                 return;
             }
 
-            let messageToSend = playerList.length + ' users online on ' + requestedServer + ':\n```\n';
+            playerCount = playerList.length;
+
+            let messageToSend = playerList.length + ' players online on ' + requestedServer + ':\n```\n';
             if (!playerList) {
                 _message.channel.send("No one's online!");
             } else {
@@ -67,7 +66,7 @@ client.on('message', message => {
 
                 _message.channel.send(messageToSend)
                     .then(sentMessage => {
-                        sentMessage.delete(30000); // store the last command so we can delete it later to avoid spamming the channel
+                        setTimeout(editMessage, 30000, sentMessage, playerCount);
                     });
             }
         }, requestedServer)
@@ -89,6 +88,15 @@ client.login(settings.token); // set token and login
 // </editor-fold description="Script">
 
 // <editor-fold description="Functions">
+function editMessage(message, playerCount) {
+    try {
+        message.edit(playerCount + ' players online'); // store the last command so we can delete it later to avoid spamming the channel
+    } catch (err) {
+        console.error(err);
+        console.log("This probably happened because the message was deleted, no big deal.")
+    }
+}
+
 function getServers() {
     servers = [];
 
@@ -146,7 +154,7 @@ function getPlayerList(callback, requestedServer = null) {
             requestedServer = servers[0].ip;
         } else {
             let findServer = servers.find(server => {
-                return server.name === requestedServer;
+                return server.name.toLowerCase() === requestedServer.toLowerCase();
             });
 
             requestedServer = findServer.ip;
